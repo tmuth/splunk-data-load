@@ -1,20 +1,26 @@
 #!/bin/bash
 
-# This script is meant to streamline the process of getting files into Splunk.
-# The goal is to:
-# 1. Delete the specified INDEX and recreate it
-# 2. Reload the input, fields, transforms, and props configs
-# 3. oneshot load all of the files in specified directory using the defined sourcetype and INDEX
-# 4. Count the number of events and show the field summary
+function show_help {
+  echo "
 
-echo $1
-source $1
-echo ${CONFIG_PATH}
+##################################################################
+This script is meant to streamline the process of getting files into Splunk.
+The goal is to:
+1. Delete the specified INDEX and recreate it
+2. Reload the input, fields, transforms, and props configs
+3. oneshot load all of the files in specified directory using the defined sourcetype and INDEX
+4. Count the number of events and show the field summary
+
+This script takes 1 argument which is a configuration file containg the details of
+the data to load. sample.cfg will be generated if it doesn't already exist.
+##################################################################
+
+"
+}
 
 # URL escape codes used to pass special characters. DO NOT CHANGE!
 dqt="%22"
 pct="%25"
-
 
 function gen_sample_cfg {
   echo "
@@ -23,8 +29,8 @@ SPLUNK_USERNAME=admin
 SPLUNK_PASS=welcome1
 INDEX=unarchive_json_fio
 SOURCETYPE=unarchive_json_fio
-#DIRECTORY=.
-DIRECTORY=/Volumes/GoogleDrive/My\ Drive/Projects/splunking-json/Docker/data/fio
+DIRECTORY=.
+#DIRECTORY=/Volumes/GoogleDrive/My\ Drive/Projects/splunking-json/Docker/data/fio
 # Either set EXTENSION to something like json to load a number of files or set FILE_NAME to a 
 # specific file name to load a single file. Don't set both. Leave the unused variable empty
 # with no spaces.
@@ -34,16 +40,27 @@ APP_NAME=unarchive_test1
 DEBUG=T # T or F" > $CFG_FILE
 }
 
-
 CFG_FILE=./sample.cfg
-if [ ! -f "$CFG_FILE" ]; then
-    echo "$CFG_FILE does not exist."
-    gen_sample_cfg
+
+if [[ $# -eq 0 ]] ; then
+    show_help
+    if [ ! -f "$CFG_FILE" ]; then
+      echo "$CFG_FILE does not exist. Generating now..."
+      gen_sample_cfg
+    fi
+    exit 0
 fi
 
+echo $1
+source $1
 
+if [[ "$INDEX" = "main" ]] || [[ "$INDEX" = _* ]];then
+  echo  "Index: $INDEX"
+  echo "Invalid index name. Choose an index name that can be deleted and recreated."
+  exit 0
+fi
 
-exit 0
+# exit 0
 
 function splunk_search {
   #echo ${1}
@@ -98,13 +115,12 @@ done
 echo "Waiting a few seconds so some of the files will be indexed..."
 sleep 3
 
-
 printf "\n\nEvent Count:"
-splunk_search "search index=${INDEX} | stats count"
+splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | stats count"
 printf "\n\nField Summary:\n"
-splunk_search "search index=${INDEX} | fieldsummary | fields field,count" \
+splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | fieldsummary | fields field,count" \
   | sed 's/,/ ,/g' | column -t -s,
 printf "\n\nEvents:\n"
-splunk_search "search index=${INDEX} | fields - _raw,index,timestamp,eventtype,punct,splunk_server,splunk_server_group,_bkt,_cd,tag,_sourcetype,_si,_indextime,source,host,_eventtype_color,linecount,${dqt}tag::eventtype${dqt} | table *" \
+splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | fields - _raw,index,timestamp,eventtype,punct,splunk_server,splunk_server_group,_bkt,_cd,tag,_sourcetype,_si,_indextime,source,host,_eventtype_color,linecount,${dqt}tag::eventtype${dqt} | table *" \
   | sed 's/,/ ,/g' | column -t -s,
 printf "\n\n"
