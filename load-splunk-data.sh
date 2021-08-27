@@ -57,15 +57,20 @@ echo $1
 source $1
 
 
-#exit 0
-
-
 if [[ "$INDEX" = "main" ]] || [[ "$INDEX" = _* ]];then
   echo  "Index: $INDEX"
   echo "Invalid index name. Choose an index name that can be deleted and recreated."
-  exit 0
+  exit 1
 fi
 
+if [[ -z "$SPLUNK_HOME" ]];then
+  echo " "
+  echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  echo "The SPLUNK_HOME environment variable is unset. Please configure before running this script."
+  echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  echo " "
+  exit 1
+fi
 # exit 0
 
 function splunk_search {
