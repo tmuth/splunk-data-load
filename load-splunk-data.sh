@@ -130,9 +130,16 @@ do
         | where LIKE(data_source,${dqt}${pct}${i}${dqt}) 
         | eval time=strftime(_time, ${dqt}${pct}I:${pct}M:${pct}S:${pct}p${dqt})
         | table time,event_message" | sed 's/\"//g'| sed 's/,/ ,/g' | column -c 2 -t -s,
+      printf "\n\n"
     fi
   fi
 done
+
+if [ "${DEBUG}" == "T" ];then
+  echo "btool debug of props.conf for sourcetype ${SOURCETYPE}:"
+  ${SPLUNK_HOME}/bin/./splunk btool props list ${SOURCETYPE} --debug
+  printf "\n\n"
+fi 
 
 echo "Waiting a few seconds so some of the files will be indexed..."
 sleep 3
