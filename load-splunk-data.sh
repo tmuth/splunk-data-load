@@ -37,6 +37,8 @@ DIRECTORY=.
 EXTENSION=
 FILE_NAME=fio-1.json
 APP_NAME=unarchive_test1
+REPORT_FIELDS=* # first_name,ip_address,last_name
+HOST_SEGMENT=# null by default. Set to a number of the segement of filename for host if needed.
 DEBUG=T # T or F" > $CFG_FILE
 }
 
@@ -53,6 +55,10 @@ fi
 
 echo $1
 source $1
+
+
+#exit 0
+
 
 if [[ "$INDEX" = "main" ]] || [[ "$INDEX" = _* ]];then
   echo  "Index: $INDEX"
@@ -95,11 +101,22 @@ config_reload "conf-transforms"
 config_reload "conf-props"
 printf "\n"
 
-for i in `ls -1 "${DIRECTORY}"`
+
+
+for i in $(find ./${DIRECTORY} -name "*")
 do
-  if ([ -z "$FILE_NAME" ] && [ "${i}" != "${i%.${EXTENSION}}" ] || [ "${i}" == "${FILE_NAME}" ]);then
-    echo "${DIRECTORY}/$i"
-    splunk add oneshot -source "${DIRECTORY}/$i" -index ${INDEX} -sourcetype ${SOURCETYPE} -auth "${SPLUNK_USERNAME}:${SPLUNK_PASS}";
+  #echo "File $i"
+  CURRENT_FILE_NAME=`echo $(basename $i)`
+  if ([ -z "$FILE_NAME" ] && [ "${i}" != "${i%.${EXTENSION}}" ] || [ "${CURRENT_FILE_NAME}" == "${FILE_NAME}" ]);then
+    echo "File $i $CURRENT_FILE_NAME"
+
+    HOST_SEGMENT_COMPUTED=""
+    if [ -n "$HOST_SEGMENT" ];then
+      HOST_SEGMENT_COMPUTED="-host_segment ${HOST_SEGMENT}"
+      echo "host segment: $HOST_SEGMENT_COMPUTED"
+    fi
+
+    splunk add oneshot -source "$i" -index ${INDEX} -sourcetype ${SOURCETYPE} ${HOST_SEGMENT_COMPUTED} -auth "${SPLUNK_USERNAME}:${SPLUNK_PASS} ";
     if [ "${DEBUG}" == "T" ];then
       echo "DEBUG waiting a few seconds so errors will be logged"
       sleep 3
@@ -121,6 +138,6 @@ printf "\n\nField Summary:\n"
 splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | fieldsummary | fields field,count" \
   | sed 's/,/ ,/g' | column -t -s,
 printf "\n\nEvents:\n"
-splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | fields - _raw,index,timestamp,eventtype,punct,splunk_server,splunk_server_group,_bkt,_cd,tag,_sourcetype,_si,_indextime,source,host,_eventtype_color,linecount,${dqt}tag::eventtype${dqt} | table *" \
+splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | fields - _raw,index,timestamp,eventtype,punct,splunk_server,splunk_server_group,_bkt,_cd,tag,_sourcetype,_si,_indextime,source,_eventtype_color,linecount,${dqt}tag::eventtype${dqt},date,date_hour,date_mday,date_minute,date_month,date_second,date_wday,date_year,date_zone | fields ${REPORT_FIELDS} | table *" \
   | sed 's/,/ ,/g' | column -t -s,
 printf "\n\n"
