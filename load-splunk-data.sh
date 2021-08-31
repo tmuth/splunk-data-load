@@ -121,7 +121,7 @@ do
       echo "host segment: $HOST_SEGMENT_COMPUTED"
     fi
 
-    splunk add oneshot -source "$i" -index ${INDEX} -sourcetype ${SOURCETYPE} ${HOST_SEGMENT_COMPUTED} -auth "${SPLUNK_USERNAME}:${SPLUNK_PASS} ";
+    ${SPLUNK_HOME}/bin/./splunk add oneshot -source "$i" -index ${INDEX} -sourcetype ${SOURCETYPE} ${HOST_SEGMENT_COMPUTED} -auth "${SPLUNK_USERNAME}:${SPLUNK_PASS} ";
     if [ "${DEBUG}" == "T" ];then
       echo "DEBUG waiting a few seconds so errors will be logged"
       sleep 3
@@ -136,6 +136,9 @@ do
 done
 
 if [ "${DEBUG}" == "T" ];then
+  echo "btool check for errors in sourcetype:"
+  ${SPLUNK_HOME}/bin/./splunk btool check | grep ${SOURCETYPE}
+  printf "\n\n"
   echo "btool debug of props.conf for sourcetype ${SOURCETYPE}:"
   ${SPLUNK_HOME}/bin/./splunk btool props list ${SOURCETYPE} --debug
   printf "\n\n"
