@@ -27,16 +27,16 @@ function gen_sample_cfg {
 SPLUNK_HOST=localhost:8089
 SPLUNK_USERNAME=admin
 SPLUNK_PASS=welcome1
-INDEX=unarchive_json_fio
-SOURCETYPE=unarchive_json_fio
+INDEX=sample_index
+SOURCETYPE=sample_sourcetype
 DIRECTORY=.
 #DIRECTORY=/Volumes/GoogleDrive/My\ Drive/Projects/splunking-json/Docker/data/fio
 # Either set EXTENSION to something like json to load a number of files or set FILE_NAME to a 
 # specific file name to load a single file. Don't set both. Leave the unused variable empty
 # with no spaces.
 EXTENSION=
-FILE_NAME=fio-1.json
-APP_NAME=unarchive_test1
+FILE_NAME=test.json
+APP_NAME=tmuth-data-load
 REPORT_FIELDS=* # first_name,ip_address,last_name
 HOST_SEGMENT=# null by default. Set to a number of the segement of filename for host if needed.
 DEBUG=T # T or F" > $CFG_FILE
@@ -107,13 +107,36 @@ config_reload "conf-props"
 printf "\n"
 
 
+PROPS_DESIRED=( "TIME_FORMAT" "TIME_PREFIX" "MAX_TIMESTAMP_LOOKAHEAD" \
+    "SHOULD_LINEMERGE" "LINE_BREAKER" "TRUNCATE" "EVENT_BREAKER_ENABLE" \
+    "EVENT_BREAKER" ) 
+
+PROPS_EXISTING=`splunk btool props list ${SOURCETYPE} --debug --app=${APP_NAME}`
+
+function check_setting {
+    check_count=`echo "$PROPS_EXISTING" | grep -c "$1"`
+    #echo "$check_count"
+    if [[ $check_count -eq 0 ]]; then 
+        echo "Great 8 setting missing: $1"
+    fi
+}
+
+printf "\n\n"
+echo "Checking the Great 8 Settings in props.conf for sourcetype ${SOURCETYPE} in app ${APP_NAME}"
+echo "$PROPS_EXISTING" | head -1
+
+for s in ${PROPS_DESIRED[@]}; do
+  check_setting "$s"
+done
+printf "\n\n"
+
 
 for i in $(find ./${DIRECTORY} -name "*")
 do
   #echo "File $i"
   CURRENT_FILE_NAME=`echo $(basename $i)`
   if ([ -z "$FILE_NAME" ] && [ "${i}" != "${i%.${EXTENSION}}" ] || [ "${CURRENT_FILE_NAME}" == "${FILE_NAME}" ]);then
-    echo "File $i $CURRENT_FILE_NAME"
+    #echo "File $i $CURRENT_FILE_NAME"
 
     HOST_SEGMENT_COMPUTED=""
     if [ -n "$HOST_SEGMENT" ];then
@@ -145,7 +168,7 @@ if [ "${DEBUG}" == "T" ];then
 fi 
 
 echo "Waiting a few seconds so some of the files will be indexed..."
-sleep 3
+sleep 10
 
 printf "\n\nEvent Count:"
 splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | stats count"
@@ -153,6 +176,11 @@ printf "\n\nField Summary:\n"
 splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | fieldsummary | fields field,count" \
   | sed 's/,/ ,/g' | column -t -s,
 printf "\n\nEvents:\n"
-splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | fields - _raw,index,timestamp,eventtype,punct,splunk_server,splunk_server_group,_bkt,_cd,tag,_sourcetype,_si,_indextime,source,_eventtype_color,linecount,${dqt}tag::eventtype${dqt},date,date_hour,date_mday,date_minute,date_month,date_second,date_wday,date_year,date_zone | fields ${REPORT_FIELDS} | table *" \
+echo "search index=${INDEX} sourcetype=${SOURCETYPE} earliest=-5y | sort - _time | head 20 "
+splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | sort - _time | head 20 | fields - _raw,index,timestamp,eventtype,punct,splunk_server,splunk_server_group,_bkt,_cd,tag,_sourcetype,_si,_indextime,source,_eventtype_color,linecount,${dqt}tag::eventtype${dqt},date,date_hour,date_mday,date_minute,date_month,date_second,date_wday,date_year,date_zone,_kv,_serial | fields ${REPORT_FIELDS} | table *" \
   | sed 's/,/ ,/g' | column -t -s,
+printf "\n\n"
+
+splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} earliest=1 | sort - _time | head 2 | table _time,_raw" \
+  | sed 's/,/ ,/g' | column -t -s, -c 2
 printf "\n\n"
