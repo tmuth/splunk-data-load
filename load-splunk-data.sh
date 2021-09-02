@@ -38,7 +38,8 @@ EXTENSION=
 FILE_NAME=test.json
 APP_NAME=tmuth-data-load
 REPORT_FIELDS=* # first_name,ip_address,last_name
-HOST_SEGMENT=# null by default. Set to a number of the segement of filename for host if needed.
+HOST_SEGMENT= # Space by default. Set to a number of the segement of filename for host if needed.
+DEBUG_TIMESTAMP=F # T or F
 DEBUG=T # T or F" > $CFG_FILE
 }
 
@@ -56,6 +57,13 @@ fi
 echo $1
 source $1
 
+
+function print_section {
+  printf "\n****** ${1} ************************************************\n"
+  if [[ "$1" = *"_END" ]];then
+    printf "\n\n"
+  fi
+}
 
 if [[ "$INDEX" = "main" ]] || [[ "$INDEX" = _* ]];then
   echo  "Index: $INDEX"
@@ -76,18 +84,27 @@ fi
 function splunk_search {
   #echo ${1}
   curl -s -k -u ${SPLUNK_USERNAME}:${SPLUNK_PASS}  \
-    https://${SPLUNK_HOST}/services/search/jobs/ \
+    -X POST https://${SPLUNK_HOST}/services/search/jobs/ \
     -d search="${1}" \
-    -d exec_mode=oneshot -d count=100 -d output_mode=csv
+    -d exec_mode=oneshot -d output_mode=csv -d adhoc_search_level=verbose
+}
+
+function splunk_search_columnar {
+  #echo ${1}
+  curl -s -k -u ${SPLUNK_USERNAME}:${SPLUNK_PASS}  \
+    -X POST https://${SPLUNK_HOST}/services/search/jobs/ \
+    -d search="${1}" \
+    -d exec_mode=oneshot -d count=100 -d output_mode=csv | sed 's/,/ ,/g' | column -t -s, 
 }
 
 function config_reload {
   local CONFIG="${1}"
-  curl --write-out "${CONFIG} http-status: %{http_code}\n" --silent --output /dev/null \
+  curl --write-out "${CONFIG} reload, http-status: %{http_code}\n" --silent --output /dev/null \
     -k -u ${SPLUNK_USERNAME}:${SPLUNK_PASS}  \
     -X POST https://${SPLUNK_HOST}/services/configs/${CONFIG}/_reload
 }
-printf "\n\n"
+
+print_section "INDEX_CONF_BEGIN"
 # delete the index
 curl --write-out "delete index http-status: %{http_code}\n" --silent --output /dev/null \
   -k -u ${SPLUNK_USERNAME}:${SPLUNK_PASS}  \
@@ -105,6 +122,7 @@ config_reload "conf-fields"
 config_reload "conf-transforms"
 config_reload "conf-props"
 printf "\n"
+print_section "INDEX_CONF_END"
 
 
 PROPS_DESIRED=( "TIME_FORMAT" "TIME_PREFIX" "MAX_TIMESTAMP_LOOKAHEAD" \
@@ -122,15 +140,17 @@ function check_setting {
 }
 
 printf "\n\n"
+print_section "GREAT_8_BEGIN"
 echo "Checking the Great 8 Settings in props.conf for sourcetype ${SOURCETYPE} in app ${APP_NAME}"
 echo "$PROPS_EXISTING" | head -1
 
 for s in ${PROPS_DESIRED[@]}; do
   check_setting "$s"
 done
+print_section "GREAT_8_END"
 printf "\n\n"
 
-
+print_section "ONESHOT_BEGIN"
 for i in $(find ./${DIRECTORY} -name "*")
 do
   #echo "File $i"
@@ -157,30 +177,46 @@ do
     fi
   fi
 done
+print_section "ONESHOT_END"
+
 
 if [ "${DEBUG}" == "T" ];then
+  print_section "BTOOL_BEGIN"
   echo "btool check for errors in sourcetype:"
   ${SPLUNK_HOME}/bin/./splunk btool check | grep ${SOURCETYPE}
   printf "\n\n"
   echo "btool debug of props.conf for sourcetype ${SOURCETYPE}:"
   ${SPLUNK_HOME}/bin/./splunk btool props list ${SOURCETYPE} --debug
-  printf "\n\n"
+  print_section "BTOOL_END"
 fi 
 
 echo "Waiting a few seconds so some of the files will be indexed..."
-sleep 10
+sleep 3
 
+print_section "EVENT_SUMMARY_BEGIN"
 printf "\n\nEvent Count:"
 splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | stats count"
 printf "\n\nField Summary:\n"
 splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | fieldsummary | fields field,count" \
   | sed 's/,/ ,/g' | column -t -s,
-printf "\n\nEvents:\n"
+print_section "EVENT_SUMMARY_END"
+
+if [ "${DEBUG_TIMESTAMP}" == "T" ];then
+  print_section "DEBUG_TIMESTAMP_BEGIN"
+
+  splunk_search "search index=_internal sourcetype=splunkd (component=DateParser OR component=DateParserVerbose) earliest=-2m | transaction component _time log_level | sort _time | table _time,component,log_level,event_message "
+  #index=_internal sourcetype=splunkd DateParserVerbose
+
+  printf "\n\n_time vs _raw:\n"
+  splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} earliest=1 | sort - _time | head 2 | table _time,_raw" \
+  | sed 's/,/ ,/g' | column -t -s, 
+  print_section "DEBUG_TIMESTAMP_END"
+fi
+
+print_section "EVENT_SEARCH_BEGIN"
 echo "search index=${INDEX} sourcetype=${SOURCETYPE} earliest=-5y | sort - _time | head 20 "
 splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | sort - _time | head 20 | fields - _raw,index,timestamp,eventtype,punct,splunk_server,splunk_server_group,_bkt,_cd,tag,_sourcetype,_si,_indextime,source,_eventtype_color,linecount,${dqt}tag::eventtype${dqt},date,date_hour,date_mday,date_minute,date_month,date_second,date_wday,date_year,date_zone,_kv,_serial | fields ${REPORT_FIELDS} | table *" \
   | sed 's/,/ ,/g' | column -t -s,
+print_section "EVENT_SEARCH_END"
 printf "\n\n"
 
-splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} earliest=1 | sort - _time | head 2 | table _time,_raw" \
-  | sed 's/,/ ,/g' | column -t -s, -c 2
-printf "\n\n"
