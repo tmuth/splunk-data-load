@@ -45,17 +45,56 @@ DEBUG=T # T or F" > $CFG_FILE
 
 CFG_FILE=./sample.cfg
 
+SETTINGS_FILE=./settings.txt
+
+function gen_settings {
+  echo "
+# The following are global settings used to change how load-splunk-data.sh runs
+#
+DEBUG_TIMESTAMP=F # T or F
+DEBUG=T # T or F 
+SHOW_GREAT_8=T # T or F
+SHOW_WALKLEX=F # T or F
+SHOW_EVENT_SUMMARY=T # T or F
+SHOW_INDEX_CONF=T # T or F " > $SETTINGS_FILE
+}
+
 if [[ $# -eq 0 ]] ; then
     show_help
     if [ ! -f "$CFG_FILE" ]; then
       echo "$CFG_FILE does not exist. Generating now..."
       gen_sample_cfg
     fi
+
+    if [ ! -f "$SETTINGS_FILE" ]; then
+      echo "$SETTINGS_FILE does not exist. Generating now..."
+      gen_settings
+    fi
     exit 0
 fi
 
 echo $1
 source $1
+
+source $SETTINGS_FILE
+
+
+if [ ! -f "$SETTINGS_FILE" ]; then
+  echo "$SETTINGS_FILE does not exist. Generating now..."
+  gen_settings
+  exit 0
+fi
+
+function should_show_section {
+  #echo ${!1}
+  if [ "${!1}" = "T" ] 
+   then
+    true
+  else
+    false
+  fi
+}
+
 
 
 function print_section {
@@ -89,40 +128,80 @@ function splunk_search {
     -d exec_mode=oneshot -d output_mode=csv -d adhoc_search_level=verbose
 }
 
-function splunk_search_columnar {
-  #echo ${1}
-  curl -s -k -u ${SPLUNK_USERNAME}:${SPLUNK_PASS}  \
-    -X POST https://${SPLUNK_HOST}/services/search/jobs/ \
+function splunk_search_polling {
+  SEARCH_LEVEL=${2:-verbose} 
+  RESULTS=`curl -s -k -u ${SPLUNK_USERNAME}:${SPLUNK_PASS}  \
+    -X POST https://${SPLUNK_HOST}/services/search/jobs \
     -d search="${1}" \
-    -d exec_mode=oneshot -d count=100 -d output_mode=csv | sed 's/,/ ,/g' | column -t -s, 
+    -d adhoc_search_level=${SEARCH_LEVEL}`
+
+    #echo "$RESULTS"
+    SID=`echo $RESULTS | sed -e 's,.*<sid>\([^<]*\)<\/sid>.*,\1,g' ` 
+    echo "SID: $SID"
+
+    SEARCH_STATUS=""
+    counter=10
+    while [ $counter -gt 0 ]
+    do
+        OUTPUT=`curl -s -k -u ${SPLUNK_USERNAME}:${SPLUNK_PASS}  \
+            -X GET https://${SPLUNK_HOST}/services/search/jobs/${SID}  `
+        #echo "$OUTPUT"
+        STATUS=`echo $OUTPUT | sed -e 's,.*<s:key name=\"dispatchState\">\([^<]*\)<\/s\:key>.*,\1,g' `
+        #echo "$STATUS"
+        if [[ "$STATUS" = "DONE" ]]; then
+            SEARCH_STATUS="DONE"
+            #echo "Leaving status loop"
+            break 1
+        fi
+        counter=$(( $counter - 1 ))
+        sleep 1
+    done
+
+    if [[ "$SEARCH_STATUS" = "DONE" ]]; then
+        #echo "Getting Search Results"
+        SEARCH_RESULTS=`curl -s -k -u ${SPLUNK_USERNAME}:${SPLUNK_PASS}  \
+            -X GET https://${SPLUNK_HOST}/services/search/jobs/${SID}/results \
+            -d output_mode=csv `
+        echo "$SEARCH_RESULTS" | sed 's/,/ ,/g' | column -t -s, 
+    fi
 }
 
 function config_reload {
   local CONFIG="${1}"
-  curl --write-out "${CONFIG} reload, http-status: %{http_code}\n" --silent --output /dev/null \
-    -k -u ${SPLUNK_USERNAME}:${SPLUNK_PASS}  \
-    -X POST https://${SPLUNK_HOST}/services/configs/${CONFIG}/_reload
+
+  curl_opts=( --silent --output /dev/null -k -u ${SPLUNK_USERNAME}:${SPLUNK_PASS})
+  
+  if should_show_section "SHOW_INDEX_CONF"; then
+    curl_opts+=( --write-out "${CONFIG} reload, http-status: %{http_code}\n" )
+  fi
+
+  curl "${curl_opts[@]}"  -X POST https://${SPLUNK_HOST}/services/configs/${CONFIG}/_reload
 }
 
-print_section "INDEX_CONF_BEGIN"
+should_show_section "SHOW_INDEX_CONF"  && print_section "INDEX_CONF_BEGIN"
+
+curl_opts=( --silent --output /dev/null -k -u ${SPLUNK_USERNAME}:${SPLUNK_PASS})
+should_show_section "SHOW_INDEX_CONF"  && curl_opts+=( --write-out "delete index http-status: %{http_code}\n" )
+
 # delete the index
-curl --write-out "delete index http-status: %{http_code}\n" --silent --output /dev/null \
-  -k -u ${SPLUNK_USERNAME}:${SPLUNK_PASS}  \
+curl "${curl_opts[@]}" \
   -X DELETE https://${SPLUNK_HOST}/servicesNS/nobody/${APP_NAME}/data/indexes/${INDEX}
 # create the index
-curl --write-out "create index http-status: %{http_code}\n" --silent --output /dev/null \
-  -k -u ${SPLUNK_USERNAME}:${SPLUNK_PASS}  \
+if should_show_section "SHOW_INDEX_CONF"; then
+  curl_opts+=( --write-out "create index http-status: %{http_code}\n" )
+fi
+curl  "${curl_opts[@]}" \
   https://${SPLUNK_HOST}/servicesNS/nobody/${APP_NAME}/data/indexes  \
     -d name=${INDEX} \
     -d datatype=event
 
-printf "\n"
+#printf "\n"
 config_reload "conf-inputs"
 config_reload "conf-fields"
 config_reload "conf-transforms"
 config_reload "conf-props"
 printf "\n"
-print_section "INDEX_CONF_END"
+should_show_section "SHOW_INDEX_CONF"  && print_section "INDEX_CONF_END"
 
 
 PROPS_DESIRED=( "TIME_FORMAT" "TIME_PREFIX" "MAX_TIMESTAMP_LOOKAHEAD" \
@@ -139,16 +218,18 @@ function check_setting {
     fi
 }
 
-printf "\n\n"
-print_section "GREAT_8_BEGIN"
-echo "Checking the Great 8 Settings in props.conf for sourcetype ${SOURCETYPE} in app ${APP_NAME}"
-echo "$PROPS_EXISTING" | head -1
+if should_show_section "SHOW_GREAT_8"; then
+  printf "\n\n"
+  print_section "GREAT_8_BEGIN"
+  echo "Checking the Great 8 Settings in props.conf for sourcetype ${SOURCETYPE} in app ${APP_NAME}"
+  echo "$PROPS_EXISTING" | head -1
 
-for s in ${PROPS_DESIRED[@]}; do
-  check_setting "$s"
-done
-print_section "GREAT_8_END"
-printf "\n\n"
+  for s in ${PROPS_DESIRED[@]}; do
+    check_setting "$s"
+  done
+  print_section "GREAT_8_END"
+  printf "\n\n"
+fi
 
 print_section "ONESHOT_BEGIN"
 for i in $(find ./${DIRECTORY} -name "*")
@@ -164,7 +245,7 @@ do
       echo "host segment: $HOST_SEGMENT_COMPUTED"
     fi
 
-    ${SPLUNK_HOME}/bin/./splunk add oneshot -source "$i" -index ${INDEX} -sourcetype ${SOURCETYPE} ${HOST_SEGMENT_COMPUTED} -auth "${SPLUNK_USERNAME}:${SPLUNK_PASS} ";
+    ${SPLUNK_HOME}/bin/./splunk add oneshot -source "$i" -index ${INDEX} -sourcetype ${SOURCETYPE} ${HOST_SEGMENT_COMPUTED} -auth "${SPLUNK_USERNAME}:${SPLUNK_PASS}";
     if [ "${DEBUG}" == "T" ];then
       echo "DEBUG waiting a few seconds so errors will be logged"
       sleep 3
@@ -193,30 +274,48 @@ fi
 echo "Waiting a few seconds so some of the files will be indexed..."
 sleep 3
 
-print_section "EVENT_SUMMARY_BEGIN"
-printf "\n\nEvent Count:"
-splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | stats count"
-printf "\n\nField Summary:\n"
-splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | fieldsummary | fields field,count" \
-  | sed 's/,/ ,/g' | column -t -s,
-print_section "EVENT_SUMMARY_END"
+if should_show_section "SHOW_EVENT_SUMMARY"; then
+  print_section "EVENT_SUMMARY_BEGIN"
+  printf "\n\nEvent Count:"
+  splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | stats count"
+  printf "\n\nField Summary:\n"
+  splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | fieldsummary | fields field,count" \
+    | sed 's/,/ ,/g' | column -t -s,
+  print_section "EVENT_SUMMARY_END"
+fi 
+
+if should_show_section "SHOW_WALKLEX"; then
+  print_section "WALKLEX_BEGIN"
+  echo "Rolling hot buckets to warm for index ${INDEX}"
+  OUTPUT=`${SPLUNK_HOME}/bin/./splunk _internal call /data/indexes/${INDEX}/roll-hot-buckets -auth "${SPLUNK_USERNAME}:${SPLUNK_PASS}" | grep HTTP`
+  echo "${OUTPUT}"
+  printf "\n"
+
+
+  SEARCH_STRING=" |  walklex index=${dqt}${INDEX}${dqt} type=field | search NOT field=${dqt} *${dqt}  "
+  SEARCH_STRING+="| where  NOT LIKE(field,${dqt}date_${pct}${dqt}) "
+  SEARCH_STRING+="| search NOT field IN (${dqt}source${dqt},${dqt}sourcetype${dqt},${dqt}punct${dqt},${dqt}linecount${dqt},${dqt}timeendpos${dqt},${dqt}timestartpos${dqt},${dqt}_indextime${dqt},${dqt}snc_io_parser${dqt}) "
+  SEARCH_STRING+="| stats sum(distinct_values) by field"
+  #echo "$SEARCH_STRING"
+  splunk_search_polling "${SEARCH_STRING}"
+  print_section "WALKLEX_END"
+fi
+
 
 if [ "${DEBUG_TIMESTAMP}" == "T" ];then
   print_section "DEBUG_TIMESTAMP_BEGIN"
 
-  splunk_search "search index=_internal sourcetype=splunkd (component=DateParser OR component=DateParserVerbose) earliest=-2m | transaction component _time log_level | sort _time | table _time,component,log_level,event_message "
+  splunk_search_polling "search index=_internal sourcetype=splunkd (component=DateParser OR component=DateParserVerbose) earliest=-2m | transaction component _time log_level | sort _time | table _time,component,log_level,event_message "
   #index=_internal sourcetype=splunkd DateParserVerbose
 
   printf "\n\n_time vs _raw:\n"
-  splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} earliest=1 | sort - _time | head 2 | table _time,_raw" \
-  | sed 's/,/ ,/g' | column -t -s, 
+  splunk_search_polling "search index=${INDEX} sourcetype=${SOURCETYPE} earliest=1 | sort - _time | head 2 | table _time,_raw"
   print_section "DEBUG_TIMESTAMP_END"
 fi
 
 print_section "EVENT_SEARCH_BEGIN"
 echo "search index=${INDEX} sourcetype=${SOURCETYPE} earliest=-5y | sort - _time | head 20 "
-splunk_search "search index=${INDEX} sourcetype=${SOURCETYPE} | sort - _time | head 20 | fields - _raw,index,timestamp,eventtype,punct,splunk_server,splunk_server_group,_bkt,_cd,tag,_sourcetype,_si,_indextime,source,_eventtype_color,linecount,${dqt}tag::eventtype${dqt},date,date_hour,date_mday,date_minute,date_month,date_second,date_wday,date_year,date_zone,_kv,_serial | fields ${REPORT_FIELDS} | table *" \
-  | sed 's/,/ ,/g' | column -t -s,
+splunk_search_polling "search index=${INDEX} sourcetype=${SOURCETYPE} | sort - _time | head 20 | fields - _raw,index,timestamp,eventtype,punct,splunk_server,splunk_server_group,_bkt,_cd,tag,_sourcetype,_si,_indextime,source,_eventtype_color,linecount,${dqt}tag::eventtype${dqt},date,date_hour,date_mday,date_minute,date_month,date_second,date_wday,date_year,date_zone,_kv,_serial | fields ${REPORT_FIELDS} | table *" 
 print_section "EVENT_SEARCH_END"
 printf "\n\n"
 

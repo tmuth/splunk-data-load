@@ -1,0 +1,9 @@
+
+# The following are global settings used to change how load-splunk-data.sh runs
+#
+DEBUG_TIMESTAMP=F # T or F
+DEBUG=F # T or F 
+SHOW_GREAT_8=F # T or F
+SHOW_EVENT_SUMMARY=F # T or F
+SHOW_WALKLEX=T # T or F
+SHOW_INDEX_CONF=F # F or F 
