@@ -38,9 +38,7 @@ EXTENSION=
 FILE_NAME=test.json
 APP_NAME=tmuth-data-load
 REPORT_FIELDS=* # first_name,ip_address,last_name
-HOST_SEGMENT= # Space by default. Set to a number of the segement of filename for host if needed.
-DEBUG_TIMESTAMP=F # T or F
-DEBUG=T # T or F" > $CFG_FILE
+HOST_SEGMENT= # Space by default. Set to a number of the segement of filename for host if needed." > $CFG_FILE
 }
 
 CFG_FILE=./sample.cfg
@@ -98,7 +96,8 @@ function should_show_section {
 
 
 function print_section {
-  printf "\n****** ${1} ************************************************\n"
+  #printf "\n****** ${1} ************************************************\n"
+  printf "\n****** %-.100s \n" "${1} ********************************************************************************************************************************************************" 
   if [[ "$1" = *"_END" ]];then
     printf "\n\n"
   fi
