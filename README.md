@@ -25,4 +25,5 @@ The GUI is great for getting simple data in that only requires changes to props.
 - Index-time field extractions
 - log2metrics conversion
 - Data redaction
+
 The process to make changes and test them usually involves multiple steps including changing files, hitting the `.../debug/refresh` URL in a browser, oneshot load from the command line, searching results in several other browser tabs. This process can be cumbersome and time consuming. This script performs all of those actions in a single call. 
