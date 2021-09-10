@@ -9,4 +9,13 @@ The goal is to:
 4. Count the number of events and show the field summary
 
 This script takes 1 argument which is a configuration file containg the details of
-the data to load. sample.cfg will be generated if it doesn't already exist.
+the data to load. sample.cfg and settings.txt will be generated if they don't already exist.
+
+## Instructions
+1. Run the script with no parmeters to generate sample.cfg
+2. Optionally rename sample.cfg and edit the parameters in it, such as AUTH_TOKEN. For instructions on setting up token authentication review this doc: https://docs.splunk.com/Documentation/Splunk/latest/Security/Setupauthenticationwithtokens
+3. Run the script, passing the newly edited .cfg file as the only parameter:
+```
+./load-splunk-data.sh sample.cfg
+```
+4. Review the output. Make any desired changes to props.conf, transforms.conf, and fields.conf and re-run the script.
