@@ -27,3 +27,13 @@ The GUI is great for getting simple data in that only requires changes to props.
 - Data redaction
 
 The process to make changes and test them usually involves multiple steps including changing files, hitting the `.../debug/refresh` URL in a browser, oneshot load from the command line, searching results in several other browser tabs. This process can be cumbersome and time consuming. This script performs all of those actions in a single call. 
+
+## Settings
+The first time the script is run without any parameters, `settings.txt` is generated if it doesn't already exist. These are global settings that control behavior and output of the script. Descriptions:
+- DEBUG_TIMESTAMP=F # T or F    : Searches _internl component=DateParser OR component=DateParserVerbose for timestamp errors
+- DEBUG=T # T or F              : Searches log_level=ERROR sourcetype=splunkd after each oneshot filtering on your sourcetype
+- SHOW_BTOOL=F # F or F         : Shows btool 
+- SHOW_GREAT_8=T # T or F       : Runs 'splunk btool check' and 'splunk btool props list  --debug'
+- SHOW_WALKLEX=F # T or F       : Rolls hot-buckets to warm, then runs walklex to show indexed-fields
+- SHOW_EVENT_SUMMARY=T # T or F : Searches '...| stats count' and '| fieldsummary ' 
+- SHOW_INDEX_CONF=T # T or F    : Displays status of index delete/create and reload of .conf files 
