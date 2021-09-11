@@ -54,13 +54,13 @@ function gen_settings {
   echo "
 # The following are global settings used to change how load-splunk-data.sh runs
 #
-DEBUG_TIMESTAMP=F # T or F
-DEBUG=T # T or F 
-SHOW_BTOOL=F # F or F 
-SHOW_GREAT_8=T # T or F
-SHOW_WALKLEX=F # T or F
-SHOW_EVENT_SUMMARY=T # T or F
-SHOW_INDEX_CONF=T # T or F " > $SETTINGS_FILE
+DEBUG_TIMESTAMP=F # T or F    : Searches _internl component=DateParser OR component=DateParserVerbose for timestamp errors
+DEBUG=T # T or F              : Searches log_level=ERROR sourcetype=splunkd after each oneshot filtering on your sourcetype
+SHOW_BTOOL=F # F or F         : Shows btool 'splunk btool check' and 'splunk btool props list ${SOURCETYPE} --debug'
+SHOW_GREAT_8=T # T or F       : Checks props.conf for the 'Great 8' or 'gr8' settings
+SHOW_WALKLEX=F # T or F       : Rolls hot-buckets to warm, then runs walklex to show indexed-fields
+SHOW_EVENT_SUMMARY=T # T or F : Searches '...| stats count' and '| fieldsummary ' 
+SHOW_INDEX_CONF=T # T or F    : Displays status of index delete/create and reload of .conf files "> $SETTINGS_FILE
 }
 
 if [[ $# -eq 0 ]] ; then
