@@ -1,7 +1,11 @@
 #!/bin/bash
 
+VERSION=1.0.1
+
 function show_help {
   echo "
+
+VERSION: ${VERSION} 
 
 ##################################################################
 This script is meant to streamline the process of getting files into Splunk.
