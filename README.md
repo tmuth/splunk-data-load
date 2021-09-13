@@ -37,3 +37,9 @@ The first time the script is run without any parameters, `settings.txt` is gener
 - SHOW_WALKLEX=F # T or F       : Rolls hot-buckets to warm, then runs walklex to show indexed-fields
 - SHOW_EVENT_SUMMARY=T # T or F : Searches '...| stats count' and '| fieldsummary ' 
 - SHOW_INDEX_CONF=T # T or F    : Displays status of index delete/create and reload of .conf files
+
+## Innovations
+Here's a quick list of the things I'm particularly proud of:
+- Columnar formatting of splunk search results in the terminal. This uses pipeline of `sed`, `awk`, and `column` commands. Check out the `"$SEARCH_STATUS" = "DONE"` section of the `splunk_search_polling` function.
+- A full example of a bash polling search function. Simple oneshot searches don't respect the smart|fast|verbose settings.
+- Encouraging use of the "Great 8" in props.conf
