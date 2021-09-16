@@ -16,8 +16,8 @@ function print_section {
   fi
 }
 
-print_section "ONESHOT_BEGIN"
-print_section "ONESHOT_END"
+#print_section "ONESHOT_BEGIN"
+#print_section "ONESHOT_END"
 
 
 # exit 0
@@ -58,8 +58,8 @@ function splunk_search_polling {
         #echo "$OUTPUT"
         PROGRESS=`echo $OUTPUT | sed -e 's,.*<s:key name=\"doneProgress\">\([^<]*\)<\/s\:key>.*,\1,g' `
         STATUS=`echo $OUTPUT | sed -e 's,.*<s:key name=\"dispatchState\">\([^<]*\)<\/s\:key>.*,\1,g' `
-        echo "$STATUS"
-        echo "$PROGRESS"
+        echo "dispatchState: $STATUS"
+        echo "doneProgress : $PROGRESS"
         if [[ "$STATUS" = "DONE" ]]; then
             SEARCH_STATUS="DONE"
             #echo "Leaving status loop"
@@ -104,5 +104,5 @@ SEARCH_STRING=" |  walklex index=${dqt}${INDEX}${dqt} type=field | search NOT fi
 #SEARCH_STRING=" search | walklex index=$INDEX  earliest=1 "
 #splunk_search_polling "${SEARCH_STRING}" "verbose"
 
-splunk_search_polling "search index=main | stats count by sourcetype"
+splunk_search_polling "search index=main | stats count by sourcetype | sort - count | head 10"
 
