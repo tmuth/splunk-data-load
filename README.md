@@ -11,8 +11,14 @@ The goal is to:
 This script takes 1 argument which is a configuration file containg the details of
 the data to load. sample.cfg and settings.txt will be generated if they don't already exist.
 
+## Download
+- `git clone https://github.com/tmuth/splunk-data-load.git`
+- Latest Version: 1.0.1
+  - Source Tree: https://github.com/tmuth/splunk-data-load/tree/1.0.2
+  - Download zip: https://github.com/tmuth/splunk-data-load/archive/refs/tags/1.0.2.zip
+
 ## Instructions
-1. Run the script with no parmeters to generate sample.cfg
+1. Run the `load-splunk-data.sh` script with no parmeters to generate sample.cfg and settings.txt
 2. Optionally rename sample.cfg and edit the parameters in it, such as AUTH_TOKEN. For instructions on setting up token authentication review [this doc](https://docs.splunk.com/Documentation/Splunk/latest/Security/Setupauthenticationwithtokens).
 3. Run the script, passing the newly edited .cfg file as the only parameter:
 ```
