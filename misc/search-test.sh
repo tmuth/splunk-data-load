@@ -50,14 +50,16 @@ function splunk_search_polling {
 
     SEARCH_STATUS=""
     counter=30 # will check for status=DONE this many times, every ${wait_seconds}
-    wait_seconds=1
+    wait_seconds=0.5
     while [ $counter -gt 0 ]
     do
         curl_opts=( "${curl_opts_common[@]}"  "${AUTH_OPTION[@]}"  )
         OUTPUT=`curl "${curl_opts[@]}" -X POST https://${SPLUNK_HOST}/services/search/jobs/${SID}`
         #echo "$OUTPUT"
+        PROGRESS=`echo $OUTPUT | sed -e 's,.*<s:key name=\"doneProgress\">\([^<]*\)<\/s\:key>.*,\1,g' `
         STATUS=`echo $OUTPUT | sed -e 's,.*<s:key name=\"dispatchState\">\([^<]*\)<\/s\:key>.*,\1,g' `
-        #echo "$STATUS"
+        echo "$STATUS"
+        echo "$PROGRESS"
         if [[ "$STATUS" = "DONE" ]]; then
             SEARCH_STATUS="DONE"
             #echo "Leaving status loop"
@@ -102,5 +104,5 @@ SEARCH_STRING=" |  walklex index=${dqt}${INDEX}${dqt} type=field | search NOT fi
 #SEARCH_STRING=" search | walklex index=$INDEX  earliest=1 "
 #splunk_search_polling "${SEARCH_STRING}" "verbose"
 
-splunk_search_polling "search index=main | stats count"
+splunk_search_polling "search index=main | stats count by sourcetype"
 
