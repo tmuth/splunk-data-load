@@ -1,11 +1,12 @@
 #!/bin/bash
 
-VERSION=1.0.1
+VERSION=1.0.2
 
 function show_help {
   echo "
 
 VERSION: ${VERSION} 
+SOURCE: https://github.com/tmuth/splunk-data-load
 
 ##################################################################
 This script is meant to streamline the process of getting files into Splunk.

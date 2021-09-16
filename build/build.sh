@@ -21,8 +21,13 @@ NEW_VERSION=`increment_version "$OLD_VERSION"`
 echo "$NEW_VERSION"
 echo "$NEW_VERSION" > $BUILD_NUM_FILE
 # Replace the version number in the script
-sed -i -E "/VERSION=/s/=.*/=$NEW_VERSION/" ../load-splunk-data.sh
+if [[ ! -z "$NEW_VERSION" ]];then
+    sed -i '' -E "/VERSION=/s/=.*/=$NEW_VERSION/" ../load-splunk-data.sh
+else
+    exit
+fi
 
+ 
 # Copy local changes to props.conf etc into the repo
 DATA_LOAD_APP=$SPLUNK_HOME/etc/apps/tmuth-data-load/local
 REPO_APP=../SPLUNK_HOME-etc-apps/tmuth-data-load/local
@@ -32,3 +37,7 @@ cp $DATA_LOAD_APP/fields.conf $REPO_APP/
 
 git tag -a $NEW_VERSION -m "new release"
 git push origin $NEW_VERSION
+
+# fix tags
+# git tag -d 1.0.2 # local
+# git push --delete origin 1.0.2 # remote

@@ -2,7 +2,7 @@
 # The following are global settings used to change how load-splunk-data.sh runs
 #
 DEBUG_TIMESTAMP=F # T or F    : Searches _internl component=DateParser OR component=DateParserVerbose for timestamp errors
-DEBUG=T # T or F              : Searches log_level=ERROR sourcetype=splunkd after each oneshot filtering on your sourcetype
+DEBUG=F # T or F              : Searches log_level=ERROR sourcetype=splunkd after each oneshot filtering on your sourcetype
 SHOW_BTOOL=F # F or F         : Shows btool 'splunk btool check' and 'splunk btool props list  --debug'
 SHOW_GREAT_8=T # T or F       : Checks props.conf for the 'Great 8' or 'gr8' settings
 SHOW_WALKLEX=F # T or F       : Rolls hot-buckets to warm, then runs walklex to show indexed-fields
