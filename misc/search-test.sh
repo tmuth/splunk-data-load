@@ -60,6 +60,12 @@ function splunk_search_polling {
         STATUS=`echo $OUTPUT | sed -e 's,.*<s:key name=\"dispatchState\">\([^<]*\)<\/s\:key>.*,\1,g' `
         echo "dispatchState: $STATUS"
         echo "doneProgress : $PROGRESS"
+
+        SEARCH_RESULTS=`curl "${curl_opts[@]}" -d output_mode=csv -X GET https://${SPLUNK_HOST}/services/search/jobs/${SID}/results_preview`
+        echo "$SEARCH_RESULTS" | sed 's/,/ ,/g' | column -t -s, \
+        | awk 'NR == 1 {print $0;print $0}; NR > 1 {print $0}' \
+        | sed '2 s/[^[:space:]]/-/g'
+
         if [[ "$STATUS" = "DONE" ]]; then
             SEARCH_STATUS="DONE"
             #echo "Leaving status loop"
